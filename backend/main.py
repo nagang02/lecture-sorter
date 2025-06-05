@@ -7,6 +7,7 @@ import pdfplumber
 
 app = FastAPI()
 
+# CORS 허용 설정
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -18,9 +19,11 @@ app.add_middleware(
 @app.post("/upload")
 async def upload_files(
     files: List[UploadFile] = File(...),
+    upload_id: str = Form(...),
     subject: str = Form(...),
     week: str = Form(...)
 ):
+    upload_id = upload_id.strip()
     subject = subject.strip()
     week = week.strip()
     results = []
@@ -29,6 +32,7 @@ async def upload_files(
         filename = file.filename
         extracted_text = ""
 
+        # PDF 요약
         if filename.endswith(".pdf"):
             try:
                 with pdfplumber.open(file.file) as pdf:
@@ -41,7 +45,8 @@ async def upload_files(
         if len(extracted_text) > 500:
             extracted_text = extracted_text[:500] + "..."
 
-        base_path = f"./uploads/{subject}/week_{week}"
+        # 저장 경로: uploads/{upload_id}/{subject}/week_{week}/
+        base_path = f"./uploads/{upload_id}/{subject}/week_{week}"
         os.makedirs(base_path, exist_ok=True)
 
         file_path = os.path.join(base_path, filename)
@@ -49,6 +54,7 @@ async def upload_files(
         with open(file_path, "wb") as out_file:
             shutil.copyfileobj(file.file, out_file)
 
+        # 요약 텍스트 저장
         summary_path = os.path.join(base_path, f"{os.path.splitext(filename)[0]}_summary.txt")
         with open(summary_path, "w", encoding="utf-8") as txt_file:
             txt_file.write(extracted_text or "내용 없음")
@@ -61,22 +67,27 @@ async def upload_files(
             "summary": extracted_text,
         })
 
-    return {"results": results}
+    return {
+        "upload_id": upload_id,
+        "results": results
+    }
 
 
 @app.post("/assignments")
 async def register_assignment(
+    upload_id: str = Form(...),
     subject: str = Form(...),
     title: str = Form(...),
     deadline: str = Form(...)
 ):
     assignment = {
+        "upload_id": upload_id.strip(),
         "subject": subject.strip(),
         "title": title.strip(),
-        "deadline": deadline.strip()  # 'YYYY-MM-DD' 형식
+        "deadline": deadline.strip()
     }
 
-    path = "assignments.json"
+    path = f"./uploads/{upload_id}/assignments.json"
     if os.path.exists(path):
         with open(path, "r", encoding="utf-8") as f:
             data = json.load(f)

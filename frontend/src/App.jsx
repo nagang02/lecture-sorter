@@ -1,8 +1,8 @@
-// src/App.jsx
 import React, { useState } from "react";
 import axios from "axios";
 
 function App() {
+  const [uploadId, setUploadId] = useState("");
   const [files, setFiles] = useState([]);
   const [subject, setSubject] = useState("디지털공학");
   const [customSubject, setCustomSubject] = useState("");
@@ -24,23 +24,24 @@ function App() {
   ];
 
   const weekOptions = Array.from({ length: 15 }, (_, i) => `${i + 1}`);
-
-  // 하드코딩된 IP 대신 VITE_BACKEND_URL 환경 변수를 사용하도록 수정
-  // Vite에서는 import.meta.env.VITE_로 시작하는 변수만 읽어옵니다.
   const backendUrl = import.meta.env.VITE_BACKEND_URL;
 
-
   const handleUpload = async () => {
+    if (!uploadId.trim()) {
+      alert("고유 ID를 입력하세요!");
+      return;
+    }
+
     const finalSubject = subject === "직접 입력" ? customSubject.trim() : subject;
     if (!finalSubject) return alert("과목명을 입력하세요!");
 
     const formData = new FormData();
     files.forEach((file) => formData.append("files", file));
+    formData.append("upload_id", uploadId);
     formData.append("subject", finalSubject);
     formData.append("week", week);
 
     try {
-      // VITE_BACKEND_URL로 설정된 주소로 API 요청
       const res = await axios.post(`${backendUrl}/upload`, formData);
       setResults(res.data.results);
     } catch (error) {
@@ -50,18 +51,24 @@ function App() {
   };
 
   const handleAssignmentSubmit = async () => {
+    if (!uploadId.trim()) {
+      alert("고유 ID를 입력하세요!");
+      return;
+    }
+
+    const finalSubject = assignment.subject === "직접 입력" ? customSubject.trim() : assignment.subject;
+    if (!finalSubject || !assignment.title || !assignment.deadline) {
+      alert("모든 항목을 입력하세요");
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append("upload_id", uploadId);
+    formData.append("subject", finalSubject);
+    formData.append("title", assignment.title);
+    formData.append("deadline", assignment.deadline);
+
     try {
-      const finalSubject = assignment.subject === "직접 입력" ? customSubject.trim() : assignment.subject;
-      if (!finalSubject || !assignment.title || !assignment.deadline) {
-        alert("모든 항목을 입력하세요");
-        return;
-      }
-
-      const formData = new FormData();
-      formData.append("subject", finalSubject);
-      formData.append("title", assignment.title);
-      formData.append("deadline", assignment.deadline);
-
       await axios.post(`${backendUrl}/assignments`, formData);
       alert("과제 등록 완료!");
       setAssignment({ subject: "디지털공학", title: "", deadline: "" });
@@ -74,8 +81,17 @@ function App() {
   return (
     <div style={{ padding: "20px" }}>
       <h1>📁 강의자료 자동 정리 시스템</h1>
-      <p>과목과 주차를 선택 후 파일을 업로드하세요.</p>
 
+      <label>🔑 고유 ID (폴더명 역할):</label>
+      <input
+        type="text"
+        placeholder="예: yskim01"
+        value={uploadId}
+        onChange={(e) => setUploadId(e.target.value)}
+        style={{ display: "block", marginBottom: "10px", padding: "5px" }}
+      />
+
+      <label>과목 선택:</label>
       <select
         value={subject}
         onChange={(e) => setSubject(e.target.value)}
@@ -96,6 +112,7 @@ function App() {
         />
       )}
 
+      <label>주차 선택:</label>
       <select
         value={week}
         onChange={(e) => setWeek(e.target.value)}
@@ -105,8 +122,6 @@ function App() {
           <option key={idx} value={w}>{w}주차</option>
         ))}
       </select>
-
-      <br />
 
       <input
         type="file"

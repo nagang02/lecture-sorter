@@ -95,3 +95,4 @@ fastapi
 uvicorn
 pdfplumber
 python-multipart
+flask-cors
