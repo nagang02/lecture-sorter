@@ -10,9 +10,9 @@ import {
 import axios from "axios";
 import { QRCodeCanvas } from "qrcode.react";
 
-// -------------------------------------
-// 1) 업로드 결과 보기 컴포넌트
-// -------------------------------------
+// ---------------------------------------------
+// 1) 업로드 결과 보기 컴포넌트 (GET /uploads/{uploadId})
+// ---------------------------------------------
 function UploadViewer() {
   const { uploadId } = useParams();
   const [uploadedData, setUploadedData] = useState(null);
@@ -34,56 +34,57 @@ function UploadViewer() {
     <div style={{ maxWidth: 700, margin: "40px auto", padding: 20, fontFamily: "sans-serif" }}>
       <h2>📂 업로드 ID: {uploadId}</h2>
 
-      {Object.entries(uploadedData).map(([subject, weeks]) => (
-        <div key={subject} style={{ marginBottom: 30 }}>
-          <h3>과목: {subject}</h3>
-          {subject === "assignments" ? (
-            // assignments 배열인 경우
-            <ul style={{ marginLeft: 20 }}>
-              {weeks.map((entry, idx) => (
-                <li key={idx}>
-                  [{entry.subject}] {entry.title} (마감: {entry.deadline})
-                </li>
-              ))}
-            </ul>
-          ) : (
-            // 정상적인 과목 → 주차별 파일 목록
-            Object.entries(weeks).map(([week, files]) => (
-              <div key={week} style={{ marginLeft: 20, marginBottom: 20 }}>
+      {/* 1) 과목별로 순회 */}
+      {Object.entries(uploadedData).map(([subject, weeks]) => {
+        // assignments는 배열이므로 별도 분기 처리
+        if (subject === "assignments") return null;
+
+        return (
+          <div key={subject}>
+            <h3>과목: {subject}</h3>
+            {Object.entries(weeks).map(([week, files]) => (
+              <div key={week} style={{ marginLeft: 20 }}>
                 <h4>{week}주차</h4>
                 <ul>
-                  {files.map((file, index) => (
-                    <li key={index}>
+                  {files.map((fileName, idx) => (
+                    <li key={idx}>
+                      {/* 실 파일 다운로드/보기 경로는 /files 로 마운트된 경로 */}
                       <a
-                        href={`https://lecture-sorter-backend.onrender.com/uploads/${uploadId}/${subject}/week_${week}/${file}`}
+                        href={`https://lecture-sorter-backend.onrender.com/files/${uploadId}/${subject}/week_${week}/${fileName}`}
                         target="_blank"
                         rel="noreferrer"
                       >
-                        {file}
+                        {fileName}
                       </a>
                     </li>
                   ))}
                 </ul>
               </div>
-            ))
-          )}
-        </div>
-      ))}
+            ))}
+          </div>
+        );
+      })}
 
-      {/* 뒤로 가기 버튼 */}
-      <button
-        onClick={() => window.history.back()}
-        style={{ marginTop: 20, padding: "6px 12px" }}
-      >
-        ← 뒤로
-      </button>
+      {/* 2) assignments 목록이 있으면 보여주기 */}
+      {uploadedData.assignments && (
+        <div style={{ marginTop: 30, borderTop: "1px solid #ddd", paddingTop: 20 }}>
+          <h3>📝 과제 목록</h3>
+          <ul>
+            {uploadedData.assignments.map((asgmt, idx) => (
+              <li key={idx}>
+                [{asgmt.subject}] {asgmt.title} – 기한: {asgmt.deadline}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
     </div>
   );
 }
 
-// -------------------------------------
+// ---------------------------------------------
 // 2) 메인 업로드 · 과제 등록 페이지
-// -------------------------------------
+// ---------------------------------------------
 function MainApp() {
   const [uploadId, setUploadId] = useState("");
   const [subject, setSubject] = useState("");
@@ -112,7 +113,6 @@ function MainApp() {
         formData
       );
       alert("업로드 성공!");
-      // 업로드 직후 화면 아래에 링크가 표시되도록 하기 위해 no-op
     } catch (error) {
       console.error(error);
       alert("업로드 실패");
@@ -182,7 +182,7 @@ function MainApp() {
         style={{ width: "100%", marginBottom: 20 }}
       />
 
-      <button onClick={handleUpload} style={{ marginBottom: 30, padding: "8px 16px" }}>
+      <button onClick={handleUpload} style={{ marginBottom: 30 }}>
         📤 업로드
       </button>
 
@@ -206,7 +206,7 @@ function MainApp() {
         style={{ width: "100%", marginBottom: 20 }}
       />
 
-      <button onClick={handleRegisterAssignment} style={{ marginBottom: 30, padding: "8px 16px" }}>
+      <button onClick={handleRegisterAssignment} style={{ marginBottom: 30 }}>
         ✅ 과제 등록
       </button>
 
@@ -214,6 +214,7 @@ function MainApp() {
         <div style={{ marginTop: "40px", borderTop: "1px solid #ccc", paddingTop: "30px" }}>
           <h3>📦 업로드 완료!</h3>
           <p>아래 링크로 언제든지 접속하여 확인할 수 있어요:</p>
+          {/* 이제 HashRouter를 쓰므로 #/uploads/{uploadId} 경로를 앞에 붙여 줍니다 */}
           <a
             href={`https://lecture-sorter-frontend.onrender.com/#/uploads/${uploadId}`}
             target="_blank"
@@ -239,9 +240,9 @@ function MainApp() {
   );
 }
 
-// -------------------------------------
-// 3) 전체 라우터 설정 (HashRouter 사용)
-// -------------------------------------
+// ---------------------------------------------
+// 3) 전체 라우터 설정 (HashRouter)
+// ---------------------------------------------
 function App() {
   return (
     <Router>
