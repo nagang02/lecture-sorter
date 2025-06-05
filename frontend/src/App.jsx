@@ -36,7 +36,7 @@ function UploadViewer() {
 
       {/* 1) 과목별로 순회 */}
       {Object.entries(uploadedData).map(([subject, weeks]) => {
-        // assignments는 배열이므로 별도 분기 처리
+        // assignments 키는 넘어가지 않도록 분기
         if (subject === "assignments") return null;
 
         return (
@@ -48,7 +48,7 @@ function UploadViewer() {
                 <ul>
                   {files.map((fileName, idx) => (
                     <li key={idx}>
-                      {/* 실 파일 다운로드/보기 경로는 /files 로 마운트된 경로 */}
+                      {/* 실제 파일 다운로드 경로는 /files/ 로 시작 */}
                       <a
                         href={`https://lecture-sorter-backend.onrender.com/files/${uploadId}/${subject}/week_${week}/${fileName}`}
                         target="_blank"
@@ -78,6 +78,26 @@ function UploadViewer() {
           </ul>
         </div>
       )}
+
+      {/* 3) ZIP 다운로드 버튼 */}
+      <div style={{ marginTop: 40 }}>
+        <button
+          onClick={() => {
+            // 브라우저에서 직접 다운로드를 시작하도록 window.open 사용
+            window.open(`https://lecture-sorter-backend.onrender.com/download/${uploadId}`, "_blank");
+          }}
+          style={{
+            padding: "10px 20px",
+            backgroundColor: "#4a90e2",
+            color: "#fff",
+            border: "none",
+            borderRadius: 4,
+            cursor: "pointer"
+          }}
+        >
+          📦 ZIP 전체 다운로드
+        </button>
+      </div>
     </div>
   );
 }

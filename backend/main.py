@@ -3,9 +3,11 @@
 import os
 import shutil
 import json
+import io
+import zipfile
 from typing import List
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 import pdfplumber
@@ -15,14 +17,14 @@ import pdfplumber
 # -----------------------------------
 app = FastAPI(
     title="Lecture Sorter Backend",
-    description="강의 자료 업로드·조회 및 과제 등록 기능을 제공하는 백엔드 API",
+    description="강의 자료 업로드·조회 및 과제 등록 기능 + ZIP 다운로드 기능을 제공하는 백엔드 API",
     version="1.0.0"
 )
 
 # CORS 허용 설정 (모든 도메인 허용)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],            # 실제 운영 시에는 프론트엔드 도메인만 허용하도록 변경 권장
+    allow_origins=["*"],            # 운영 시에는 프론트엔드 도메인만 허용하도록 변경 가능
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -31,8 +33,7 @@ app.add_middleware(
 # 업로드한 파일을 저장할 최상위 디렉터리
 UPLOAD_ROOT = "./uploads"
 
-# 만약 디렉터리가 없으면 자동으로 생성해 둡니다.
-# (서버가 시작될 때 한 번만 실행)
+# 서버 시작 시, UPLOAD_ROOT 디렉터리가 없으면 생성
 if not os.path.exists(UPLOAD_ROOT):
     os.makedirs(UPLOAD_ROOT, exist_ok=True)
 
@@ -54,12 +55,11 @@ async def upload_files(
     files: List[UploadFile] = File(...)
 ):
     """
-    - upload_id: 사용자가 임의로 지정하는 고유 ID (예: "nagang")
+    - upload_id: 사용자가 지정하는 고유 ID (예: "nagang")
     - subject: 과목명 (예: "디지털공학")
     - week: 주차 (예: "1", "2" 등)
     - files: 실제 업로드된 파일 리스트
     """
-
     upload_id = upload_id.strip()
     subject = subject.strip()
     week = week.strip()
@@ -69,7 +69,6 @@ async def upload_files(
         raise HTTPException(status_code=400, detail="upload_id, subject, week, files 모두 필요합니다.")
 
     results = []
-
     # 업로드 경로: ./uploads/{upload_id}/{subject}/week_{week}/
     base_path = os.path.join(UPLOAD_ROOT, upload_id, subject, f"week_{week}")
     os.makedirs(base_path, exist_ok=True)
@@ -134,7 +133,6 @@ async def register_assignment(
     - title: 과제 제목
     - deadline: 과제 제출 기한 ("YYYY-MM-DD" 형식)
     """
-
     upload_id = upload_id.strip()
     subject = subject.strip()
     title = title.strip()
@@ -148,8 +146,6 @@ async def register_assignment(
     os.makedirs(assignment_dir, exist_ok=True)
 
     assignment_path = os.path.join(assignment_dir, "assignments.json")
-
-    # 기존 파일이 있으면 읽어서 리스트로 불러오고, 없으면 빈 리스트
     if os.path.exists(assignment_path):
         try:
             with open(assignment_path, "r", encoding="utf-8") as f:
@@ -159,7 +155,6 @@ async def register_assignment(
     else:
         existing_data = []
 
-    # 새 과제 항목 추가
     new_assignment = {
         "subject": subject,
         "title": title,
@@ -167,7 +162,6 @@ async def register_assignment(
     }
     existing_data.append(new_assignment)
 
-    # assignments.json에 덮어쓰기
     with open(assignment_path, "w", encoding="utf-8") as f:
         json.dump(existing_data, f, ensure_ascii=False, indent=2)
 
@@ -175,7 +169,7 @@ async def register_assignment(
 
 
 # -----------------------------------
-# 4) /uploads/{upload_id} 엔드포인트: 업로드된 자료 조회
+# 4) /uploads/{upload_id} 엔드포인트: 업로드된 자료 조회 (JSON)
 # -----------------------------------
 @app.get("/uploads/{upload_id}")
 async def get_upload_info(upload_id: str):
@@ -190,7 +184,6 @@ async def get_upload_info(upload_id: str):
       "assignments": [ {subject, title, deadline}, … ]   # 있을 경우 과제 목록
     }
     """
-
     upload_id = upload_id.strip()
     target_dir = os.path.join(UPLOAD_ROOT, upload_id)
     if not os.path.exists(target_dir):
@@ -207,7 +200,6 @@ async def get_upload_info(upload_id: str):
         if entry == "assignments.json":
             continue
 
-        # subject_path가 과목 디렉터리라면 내부에 week_{n} 폴더들이 있을 것
         subject_data = {}
         for week_folder in os.listdir(subject_path):
             week_path = os.path.join(subject_path, week_folder)
@@ -220,7 +212,6 @@ async def get_upload_info(upload_id: str):
                 for fname in os.listdir(week_path)
                 if os.path.isfile(os.path.join(week_path, fname))
             ]
-            # 예: ["강의슬라이드.pdf", "강의슬라이드_summary.txt", …]
             # 키는 “주차”만 남겨둔다 (week_ 를 제거)
             subject_data[week_folder.replace("week_", "")] = file_list
 
@@ -241,7 +232,38 @@ async def get_upload_info(upload_id: str):
 
 
 # -----------------------------------
-# 5) 루트 요청 시 안내 메시지 (선택 사항)
+# 5) /download/{upload_id} 엔드포인트: 전체 폴더를 ZIP으로 묶어 내려줌
+# -----------------------------------
+@app.get("/download/{upload_id}")
+async def download_zip(upload_id: str):
+    """
+    upload_id 디렉터리 전체를 ZIP으로 압축하여 스트리밍 응답으로 내려줍니다.
+    """
+    upload_id = upload_id.strip()
+    target_dir = os.path.join(UPLOAD_ROOT, upload_id)
+    if not os.path.exists(target_dir):
+        raise HTTPException(status_code=404, detail="해당 upload_id의 자료를 찾을 수 없습니다.")
+
+    # 메모리 상에서 ZIP 생성
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, mode="w", compression=zipfile.ZIP_DEFLATED) as zf:
+        # target_dir 하위 모든 파일을 순회하며 ZIP에 추가
+        for root, _, files in os.walk(target_dir):
+            for filename in files:
+                file_path = os.path.join(root, filename)
+                # ZIP 안에 들어갈 경로를 상대경로로 계산
+                rel_path = os.path.relpath(file_path, UPLOAD_ROOT)
+                zf.write(file_path, arcname=rel_path)
+    buf.seek(0)
+
+    headers = {
+        "Content-Disposition": f"attachment; filename={upload_id}.zip"
+    }
+    return StreamingResponse(buf, media_type="application/zip", headers=headers)
+
+
+# -----------------------------------
+# 6) 루트 요청 시 안내 메시지 (선택 사항)
 # -----------------------------------
 @app.get("/")
 async def root():
