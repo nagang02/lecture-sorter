@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import axios from "axios";
-import QRCode from "qrcode.react";
+import { QRCodeCanvas } from "qrcode.react";
 
 function App() {
   const [uploadId, setUploadId] = useState("");
@@ -139,7 +139,7 @@ function App() {
           </a>
 
           <h4 style={{ marginTop: "20px" }}>📱 QR코드로 공유</h4>
-          <QRCode
+          <QRCodeCanvas
             value={`https://lecture-sorter-frontend.onrender.com/uploads/${uploadId}`}
             size={160}
             includeMargin={true}
