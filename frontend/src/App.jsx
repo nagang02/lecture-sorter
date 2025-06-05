@@ -1,8 +1,58 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import { BrowserRouter as Router, Routes, Route, useParams } from "react-router-dom";
 import axios from "axios";
 import { QRCodeCanvas } from "qrcode.react";
 
-function App() {
+// ✅ 업로드 결과 보기 컴포넌트
+function UploadViewer() {
+  const { uploadId } = useParams();
+  const [uploadedData, setUploadedData] = useState(null);
+
+  useEffect(() => {
+    axios
+      .get(`https://lecture-sorter-backend.onrender.com/uploads/${uploadId}`)
+      .then((res) => setUploadedData(res.data))
+      .catch((err) => {
+        console.error(err);
+        setUploadedData({ error: true });
+      });
+  }, [uploadId]);
+
+  if (!uploadedData) return <p>불러오는 중...</p>;
+  if (uploadedData.error) return <p>업로드 정보를 불러오지 못했습니다.</p>;
+
+  return (
+    <div style={{ maxWidth: 700, margin: "40px auto", padding: 20, fontFamily: "sans-serif" }}>
+      <h2>📂 업로드 ID: {uploadId}</h2>
+      {Object.entries(uploadedData).map(([subject, weeks]) => (
+        <div key={subject}>
+          <h3>과목: {subject}</h3>
+          {Object.entries(weeks).map(([week, files]) => (
+            <div key={week} style={{ marginLeft: 20 }}>
+              <h4>{week}주차</h4>
+              <ul>
+                {files.map((file, index) => (
+                  <li key={index}>
+                    <a
+                      href={`https://lecture-sorter-backend.onrender.com/uploads/${uploadId}/${subject}/${week}/${file}`}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      {file}
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ✅ 메인 페이지 컴포넌트
+function MainApp() {
   const [uploadId, setUploadId] = useState("");
   const [subject, setSubject] = useState("");
   const [week, setWeek] = useState("");
@@ -151,6 +201,18 @@ function App() {
         </div>
       )}
     </div>
+  );
+}
+
+// ✅ 전체 라우터 설정
+function App() {
+  return (
+    <Router>
+      <Routes>
+        <Route path="/" element={<MainApp />} />
+        <Route path="/uploads/:uploadId" element={<UploadViewer />} />
+      </Routes>
+    </Router>
   );
 }
 
