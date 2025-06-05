@@ -4,10 +4,12 @@ from typing import List
 from datetime import datetime
 import shutil, os, json
 import pdfplumber
+from fastapi.responses import JSONResponse, FileResponse
+from fastapi.staticfiles import StaticFiles
+import zipfile
 
 app = FastAPI()
 
-# CORS 허용 설정
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -16,7 +18,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# 🔽 파일 업로드 API
+UPLOAD_ROOT = "./uploads"
+app.mount("/uploads", StaticFiles(directory=UPLOAD_ROOT), name="uploads")
+
 @app.post("/upload")
 async def upload_files(
     files: List[UploadFile] = File(...),
@@ -24,19 +28,13 @@ async def upload_files(
     subject: str = Form(...),
     week: str = Form(...)
 ):
-    upload_id = upload_id.strip()
-    subject = subject.strip()
-    week = week.strip()
+    upload_id, subject, week = upload_id.strip(), subject.strip(), week.strip()
     results = []
-
-    base_path = f"./uploads/{upload_id}/{subject}/week_{week}"
-    os.makedirs(base_path, exist_ok=True)
 
     for file in files:
         filename = file.filename
         extracted_text = ""
 
-        # PDF 요약 처리
         if filename.endswith(".pdf"):
             try:
                 with pdfplumber.open(file.file) as pdf:
@@ -45,35 +43,32 @@ async def upload_files(
             except Exception as e:
                 extracted_text = f"[PDF 열기 실패] {e}"
 
-        # 요약 정제
         extracted_text = extracted_text.strip().replace("\n", " ")
         if len(extracted_text) > 500:
             extracted_text = extracted_text[:500] + "..."
+
+        base_path = os.path.join(UPLOAD_ROOT, upload_id, subject, f"week_{week}")
+        os.makedirs(base_path, exist_ok=True)
 
         file_path = os.path.join(base_path, filename)
         file.file.seek(0)
         with open(file_path, "wb") as out_file:
             shutil.copyfileobj(file.file, out_file)
 
-        # 요약 텍스트 저장
         summary_path = os.path.join(base_path, f"{os.path.splitext(filename)[0]}_summary.txt")
         with open(summary_path, "w", encoding="utf-8") as txt_file:
             txt_file.write(extracted_text or "내용 없음")
 
         results.append({
-            "filename": filename,
-            "summary": extracted_text,
-            "saved_path": file_path
+            "original_name": filename,
+            "subject": subject,
+            "week": week,
+            "path": file_path,
+            "summary": extracted_text
         })
 
-    return {
-        "upload_id": upload_id,
-        "subject": subject,
-        "week": week,
-        "results": results
-    }
+    return {"upload_id": upload_id, "results": results}
 
-# 🔽 과제 등록 API
 @app.post("/assignments")
 async def register_assignment(
     upload_id: str = Form(...),
@@ -81,20 +76,15 @@ async def register_assignment(
     title: str = Form(...),
     deadline: str = Form(...)
 ):
-    upload_id = upload_id.strip()
-    subject = subject.strip()
-
-    # uploads/{upload_id}/ 디렉토리 존재 보장
-    base_path = f"./uploads/{upload_id}"
-    os.makedirs(base_path, exist_ok=True)
+    path = os.path.join(UPLOAD_ROOT, upload_id, "assignments.json")
+    os.makedirs(os.path.dirname(path), exist_ok=True)
 
     assignment = {
+        "subject": subject.strip(),
         "title": title.strip(),
-        "deadline": deadline.strip(),
-        "subject": subject
+        "deadline": deadline.strip()
     }
 
-    path = os.path.join(base_path, "assignments.json")
     if os.path.exists(path):
         with open(path, "r", encoding="utf-8") as f:
             data = json.load(f)
@@ -106,39 +96,43 @@ async def register_assignment(
     with open(path, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2, ensure_ascii=False)
 
-    return {"message": "과제가 저장되었습니다.", "assignment": assignment}
+    return {"message": "과제가 저장되었습니다."}
 
-# 🔽 업로드된 파일 목록 보기
-@app.get("/list_files")
-async def list_files(upload_id: str):
-    base_path = f"./uploads/{upload_id}"
-    file_info = []
+@app.get("/uploads/{upload_id}")
+async def get_upload_contents(upload_id: str):
+    upload_dir = os.path.join(UPLOAD_ROOT, upload_id)
+    if not os.path.exists(upload_dir):
+        return JSONResponse(status_code=404, content={"error": "해당 ID의 업로드 내용이 존재하지 않습니다."})
 
-    if not os.path.exists(base_path):
-        return {"message": "업로드 기록 없음", "files": []}
+    result = {"files": [], "assignments": []}
 
-    for subject in os.listdir(base_path):
-        subject_path = os.path.join(base_path, subject)
-        if os.path.isdir(subject_path):
-            for week_folder in os.listdir(subject_path):
-                week_path = os.path.join(subject_path, week_folder)
-                files = os.listdir(week_path)
-                file_info.append({
-                    "subject": subject,
-                    "week": week_folder,
-                    "files": files
-                })
+    for root, dirs, files in os.walk(upload_dir):
+        for file in files:
+            if file.endswith("_summary.txt"):
+                continue  # 요약 파일은 따로 보여주지 않음
+            path = os.path.join(root, file)
+            rel_path = os.path.relpath(path, upload_dir)
+            result["files"].append(rel_path)
 
-    return {"upload_id": upload_id, "files": file_info}
+    assignment_path = os.path.join(upload_dir, "assignments.json")
+    if os.path.exists(assignment_path):
+        with open(assignment_path, "r", encoding="utf-8") as f:
+            result["assignments"] = json.load(f)
 
-# 🔽 과제 목록 보기
-@app.get("/list_assignments")
-async def list_assignments(upload_id: str):
-    path = f"./uploads/{upload_id}/assignments.json"
-    if not os.path.exists(path):
-        return {"message": "과제 기록 없음", "assignments": []}
-    
-    with open(path, "r", encoding="utf-8") as f:
-        data = json.load(f)
-    
-    return {"upload_id": upload_id, "assignments": data}
+    return result
+
+@app.get("/zip/{upload_id}")
+async def download_zip(upload_id: str):
+    upload_path = os.path.join(UPLOAD_ROOT, upload_id)
+    if not os.path.exists(upload_path):
+        return JSONResponse(status_code=404, content={"error": "업로드 ID가 존재하지 않습니다."})
+
+    zip_path = f"/tmp/{upload_id}.zip"
+    with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zipf:
+        for root, dirs, files in os.walk(upload_path):
+            for file in files:
+                full_path = os.path.join(root, file)
+                rel_path = os.path.relpath(full_path, upload_path)
+                zipf.write(full_path, arcname=rel_path)
+
+    return FileResponse(zip_path, filename=f"{upload_id}.zip", media_type="application/zip")

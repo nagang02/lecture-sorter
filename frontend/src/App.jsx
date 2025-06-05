@@ -1,144 +1,171 @@
-// src/App.jsx
+// App.jsx
 import React, { useState } from "react";
 import axios from "axios";
-
-const BACKEND_URL = "https://lecture-sorter-backend.onrender.com";
 
 function App() {
   const [uploadId, setUploadId] = useState("");
   const [subject, setSubject] = useState("");
-  const [week, setWeek] = useState("");
+  const [week, setWeek] = useState("1");
   const [files, setFiles] = useState([]);
-  const [title, setTitle] = useState("");
-  const [deadline, setDeadline] = useState("");
-  const [result, setResult] = useState(null);
-  const [summary, setSummary] = useState(null);
-
-  const handleFileChange = (e) => setFiles(e.target.files);
+  const [assignment, setAssignment] = useState({ subject: "", title: "", deadline: "" });
+  const [uploadedFiles, setUploadedFiles] = useState([]);
+  const [assignments, setAssignments] = useState([]);
+  const backendUrl = import.meta.env.VITE_BACKEND_URL;
 
   const handleUpload = async () => {
     if (!uploadId || !subject || !week || files.length === 0) {
-      alert("모든 정보를 입력해주세요");
+      alert("모든 항목을 입력하세요.");
       return;
     }
+
     const formData = new FormData();
-    for (let file of files) formData.append("files", file);
+    files.forEach(file => formData.append("files", file));
     formData.append("upload_id", uploadId);
     formData.append("subject", subject);
     formData.append("week", week);
-    const res = await axios.post(`${BACKEND_URL}/upload`, formData);
-    setResult(res.data);
-    alert("업로드 완료!");
+
+    try {
+      await axios.post(`${backendUrl}/upload`, formData);
+      alert("파일 업로드 성공!");
+    } catch (err) {
+      alert("업로드 실패");
+      console.error(err);
+    }
   };
 
-  const handleAssignment = async () => {
+  const handleAssignmentSubmit = async () => {
+    const { subject, title, deadline } = assignment;
     if (!uploadId || !subject || !title || !deadline) {
-      alert("모든 정보를 입력해주세요");
+      alert("모든 항목을 입력하세요.");
       return;
     }
+
     const formData = new FormData();
     formData.append("upload_id", uploadId);
     formData.append("subject", subject);
     formData.append("title", title);
     formData.append("deadline", deadline);
-    const res = await axios.post(`${BACKEND_URL}/assignments`, formData);
-    alert(res.data.message);
+
+    try {
+      await axios.post(`${backendUrl}/assignments`, formData);
+      alert("과제 등록 성공!");
+    } catch (err) {
+      alert("과제 등록 실패");
+      console.error(err);
+    }
   };
 
-  const handleView = async () => {
-    const res = await axios.get(`${BACKEND_URL}/upload_summary/${uploadId}`);
-    setSummary(res.data);
+  const handleFetchUploads = async () => {
+    try {
+      const res = await axios.get(`${backendUrl}/uploads/${uploadId}`);
+      setUploadedFiles(res.data.files || []);
+      setAssignments(res.data.assignments || []);
+    } catch (err) {
+      alert("업로드 내용을 불러오지 못했습니다.");
+      console.error(err);
+    }
   };
 
-  const handleDownload = () => {
-    window.open(`${BACKEND_URL}/download_zip/${uploadId}`, "_blank");
+  const handleDownloadZip = () => {
+    if (!uploadId) return alert("업로드 ID를 입력하세요.");
+    window.open(`${backendUrl}/zip/${uploadId}`, "_blank");
   };
 
   return (
-    <div className="p-6 max-w-3xl mx-auto">
-      <h1 className="text-2xl font-bold mb-4">Lecture Sorter</h1>
+    <div style={{ padding: "30px" }}>
+      <h1>📁 Lecture Sorter</h1>
 
       <input
         type="text"
-        placeholder="고유 ID (예: my2025)"
         value={uploadId}
         onChange={(e) => setUploadId(e.target.value)}
-        className="border p-2 mr-2"
+        placeholder="업로드 ID (예: mynote123)"
+        style={{ padding: "5px", width: "250px", marginBottom: "10px" }}
       />
-      <input
-        type="text"
-        placeholder="과목명"
-        value={subject}
-        onChange={(e) => setSubject(e.target.value)}
-        className="border p-2 mr-2"
-      />
-      <input
-        type="text"
-        placeholder="주차"
-        value={week}
-        onChange={(e) => setWeek(e.target.value)}
-        className="border p-2 mr-2"
-      />
+
+      <div style={{ marginBottom: "10px" }}>
+        <input
+          type="text"
+          placeholder="과목명"
+          value={subject}
+          onChange={(e) => setSubject(e.target.value)}
+          style={{ padding: "5px", marginRight: "10px" }}
+        />
+        <input
+          type="text"
+          placeholder="주차 (숫자)"
+          value={week}
+          onChange={(e) => setWeek(e.target.value)}
+          style={{ padding: "5px", width: "60px" }}
+        />
+      </div>
+
       <input
         type="file"
         multiple
-        onChange={handleFileChange}
-        className="my-2"
+        onChange={(e) => setFiles([...e.target.files])}
+        style={{ marginBottom: "10px" }}
       />
-      <button onClick={handleUpload} className="bg-blue-500 text-white p-2 rounded">
-        파일 업로드
-      </button>
+      <button onClick={handleUpload}>📤 파일 업로드</button>
 
-      <div className="mt-6">
-        <h2 className="text-xl font-semibold mb-2">과제 등록</h2>
-        <input
-          type="text"
-          placeholder="과제 제목"
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          className="border p-2 mr-2"
-        />
-        <input
-          type="text"
-          placeholder="제출기한 (예: 2025-06-10)"
-          value={deadline}
-          onChange={(e) => setDeadline(e.target.value)}
-          className="border p-2 mr-2"
-        />
-        <button onClick={handleAssignment} className="bg-green-500 text-white p-2 rounded">
-          과제 등록
-        </button>
+      <hr style={{ margin: "30px 0" }} />
+
+      <h2>📝 과제 등록</h2>
+      <input
+        type="text"
+        placeholder="과목명"
+        value={assignment.subject}
+        onChange={(e) => setAssignment({ ...assignment, subject: e.target.value })}
+        style={{ padding: "5px", marginRight: "10px" }}
+      />
+      <input
+        type="text"
+        placeholder="과제 제목"
+        value={assignment.title}
+        onChange={(e) => setAssignment({ ...assignment, title: e.target.value })}
+        style={{ padding: "5px", marginRight: "10px" }}
+      />
+      <input
+        type="date"
+        value={assignment.deadline}
+        onChange={(e) => setAssignment({ ...assignment, deadline: e.target.value })}
+        style={{ padding: "5px", marginRight: "10px" }}
+      />
+      <button onClick={handleAssignmentSubmit}>✅ 과제 등록</button>
+
+      <hr style={{ margin: "30px 0" }} />
+
+      <h2>🔍 업로드 확인 및 다운로드</h2>
+      <button onClick={handleFetchUploads} style={{ marginRight: "10px" }}>업로드 내용 보기</button>
+      <button onClick={handleDownloadZip}>Zip 다운로드</button>
+
+      <div style={{ marginTop: "20px" }}>
+        <h3>📦 업로드된 파일 목록</h3>
+        {uploadedFiles.length === 0 ? (
+          <p>표시할 파일이 없습니다.</p>
+        ) : (
+          uploadedFiles.map((f, idx) => (
+            <div key={idx} style={{ borderBottom: "1px solid #ddd", padding: "5px 0" }}>
+              <strong>{f.filename}</strong> ({f.subject} / {f.week}주차)
+              <br />
+              요약: {f.summary}
+            </div>
+          ))
+        )}
       </div>
 
-      <div className="mt-6">
-        <button onClick={handleView} className="bg-gray-700 text-white p-2 rounded mr-2">
-          업로드 내용 보기
-        </button>
-        <button onClick={handleDownload} className="bg-purple-600 text-white p-2 rounded">
-          Zip 다운로드
-        </button>
+      <div style={{ marginTop: "30px" }}>
+        <h3>📝 등록된 과제</h3>
+        {assignments.length === 0 ? (
+          <p>등록된 과제가 없습니다.</p>
+        ) : (
+          assignments.map((a, idx) => (
+            <div key={idx} style={{ borderBottom: "1px solid #ccc", padding: "5px 0" }}>
+              <strong>{a.subject}</strong> - {a.title} (마감일: {a.deadline})
+            </div>
+          ))
+        )}
       </div>
-
-      {summary && (
-        <div className="mt-4">
-          <h3 className="text-lg font-bold">📄 파일 요약</h3>
-          <ul className="list-disc pl-5">
-            {summary.files.map((f, idx) => (
-              <li key={idx}>
-                <strong>{f.filename}</strong>: {f.summary.slice(0, 100)}
-              </li>
-            ))}
-          </ul>
-          <h3 className="text-lg font-bold mt-4">📝 과제 목록</h3>
-          <ul className="list-disc pl-5">
-            {summary.assignments.map((a, idx) => (
-              <li key={idx}>
-                {a.subject} - {a.title} (기한: {a.deadline})
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
     </div>
   );
 }
