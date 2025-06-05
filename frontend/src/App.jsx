@@ -1,171 +1,172 @@
-// App.jsx
-import React, { useState } from "react";
-import axios from "axios";
+import React, { useState } from 'react';
+import axios from 'axios';
 
 function App() {
-  const [uploadId, setUploadId] = useState("");
-  const [subject, setSubject] = useState("");
-  const [week, setWeek] = useState("1");
+  const [uploadId, setUploadId] = useState('');
+  const [subject, setSubject] = useState('');
+  const [week, setWeek] = useState('');
   const [files, setFiles] = useState([]);
-  const [assignment, setAssignment] = useState({ subject: "", title: "", deadline: "" });
-  const [uploadedFiles, setUploadedFiles] = useState([]);
+  const [assignTitle, setAssignTitle] = useState('');
+  const [assignDeadline, setAssignDeadline] = useState('');
+  const [uploadedData, setUploadedData] = useState(null);
   const [assignments, setAssignments] = useState([]);
-  const backendUrl = import.meta.env.VITE_BACKEND_URL;
+  const [message, setMessage] = useState('');
+
+  const backendURL = 'https://lecture-sorter-backend.onrender.com';
 
   const handleUpload = async () => {
-    if (!uploadId || !subject || !week || files.length === 0) {
-      alert("모든 항목을 입력하세요.");
-      return;
-    }
-
     const formData = new FormData();
-    files.forEach(file => formData.append("files", file));
-    formData.append("upload_id", uploadId);
-    formData.append("subject", subject);
-    formData.append("week", week);
+    files.forEach(file => formData.append('files', file));
+    formData.append('upload_id', uploadId);
+    formData.append('subject', subject);
+    formData.append('week', week);
 
     try {
-      await axios.post(`${backendUrl}/upload`, formData);
-      alert("파일 업로드 성공!");
+      const res = await axios.post(`${backendURL}/upload`, formData);
+      setMessage('파일 업로드 성공');
+      console.log(res.data);
     } catch (err) {
-      alert("업로드 실패");
       console.error(err);
+      setMessage('업로드 실패');
     }
   };
 
-  const handleAssignmentSubmit = async () => {
-    const { subject, title, deadline } = assignment;
-    if (!uploadId || !subject || !title || !deadline) {
-      alert("모든 항목을 입력하세요.");
-      return;
-    }
-
+  const handleAssignment = async () => {
     const formData = new FormData();
-    formData.append("upload_id", uploadId);
-    formData.append("subject", subject);
-    formData.append("title", title);
-    formData.append("deadline", deadline);
+    formData.append('upload_id', uploadId);
+    formData.append('subject', subject);
+    formData.append('title', assignTitle);
+    formData.append('deadline', assignDeadline);
 
     try {
-      await axios.post(`${backendUrl}/assignments`, formData);
-      alert("과제 등록 성공!");
+      await axios.post(`${backendURL}/assignments`, formData);
+      setMessage('과제 등록 완료');
     } catch (err) {
-      alert("과제 등록 실패");
       console.error(err);
+      setMessage('과제 등록 실패');
     }
   };
 
-  const handleFetchUploads = async () => {
+  const fetchUploadedData = async () => {
     try {
-      const res = await axios.get(`${backendUrl}/uploads/${uploadId}`);
-      setUploadedFiles(res.data.files || []);
-      setAssignments(res.data.assignments || []);
+      const res = await axios.get(`${backendURL}/uploads/${uploadId}`);
+      setUploadedData(res.data);
+      setMessage('');
     } catch (err) {
-      alert("업로드 내용을 불러오지 못했습니다.");
       console.error(err);
+      setMessage('업로드된 자료 없음');
+      setUploadedData(null);
     }
   };
 
-  const handleDownloadZip = () => {
-    if (!uploadId) return alert("업로드 ID를 입력하세요.");
-    window.open(`${backendUrl}/zip/${uploadId}`, "_blank");
+  const fetchAssignments = async () => {
+    try {
+      const res = await axios.get(`${backendURL}/assignments/${uploadId}`);
+      setAssignments(res.data);
+      setMessage('');
+    } catch (err) {
+      console.error(err);
+      setMessage('과제 정보 없음');
+      setAssignments([]);
+    }
+  };
+
+  const handleDownloadZip = async () => {
+    try {
+      const res = await axios.get(`${backendURL}/zip/${uploadId}`, {
+        responseType: 'blob',
+      });
+      const url = window.URL.createObjectURL(new Blob([res.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `${uploadId}_자료.zip`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+    } catch (err) {
+      console.error(err);
+      setMessage('ZIP 다운로드 실패');
+    }
   };
 
   return (
-    <div style={{ padding: "30px" }}>
-      <h1>📁 Lecture Sorter</h1>
+    <div style={{ padding: '20px' }}>
+      <h1>📚 Lecture Sorter</h1>
 
       <input
-        type="text"
+        placeholder="업로드 ID"
         value={uploadId}
         onChange={(e) => setUploadId(e.target.value)}
-        placeholder="업로드 ID (예: mynote123)"
-        style={{ padding: "5px", width: "250px", marginBottom: "10px" }}
       />
-
-      <div style={{ marginBottom: "10px" }}>
-        <input
-          type="text"
-          placeholder="과목명"
-          value={subject}
-          onChange={(e) => setSubject(e.target.value)}
-          style={{ padding: "5px", marginRight: "10px" }}
-        />
-        <input
-          type="text"
-          placeholder="주차 (숫자)"
-          value={week}
-          onChange={(e) => setWeek(e.target.value)}
-          style={{ padding: "5px", width: "60px" }}
-        />
-      </div>
-
+      <input
+        placeholder="과목명"
+        value={subject}
+        onChange={(e) => setSubject(e.target.value)}
+      />
+      <input
+        placeholder="주차 (숫자만)"
+        value={week}
+        onChange={(e) => setWeek(e.target.value)}
+      />
       <input
         type="file"
         multiple
-        onChange={(e) => setFiles([...e.target.files])}
-        style={{ marginBottom: "10px" }}
+        onChange={(e) => setFiles(Array.from(e.target.files))}
       />
       <button onClick={handleUpload}>📤 파일 업로드</button>
 
-      <hr style={{ margin: "30px 0" }} />
+      <hr />
 
-      <h2>📝 과제 등록</h2>
       <input
-        type="text"
-        placeholder="과목명"
-        value={assignment.subject}
-        onChange={(e) => setAssignment({ ...assignment, subject: e.target.value })}
-        style={{ padding: "5px", marginRight: "10px" }}
-      />
-      <input
-        type="text"
         placeholder="과제 제목"
-        value={assignment.title}
-        onChange={(e) => setAssignment({ ...assignment, title: e.target.value })}
-        style={{ padding: "5px", marginRight: "10px" }}
+        value={assignTitle}
+        onChange={(e) => setAssignTitle(e.target.value)}
       />
       <input
         type="date"
-        value={assignment.deadline}
-        onChange={(e) => setAssignment({ ...assignment, deadline: e.target.value })}
-        style={{ padding: "5px", marginRight: "10px" }}
+        value={assignDeadline}
+        onChange={(e) => setAssignDeadline(e.target.value)}
       />
-      <button onClick={handleAssignmentSubmit}>✅ 과제 등록</button>
+      <button onClick={handleAssignment}>📝 과제 등록</button>
 
-      <hr style={{ margin: "30px 0" }} />
+      <hr />
 
-      <h2>🔍 업로드 확인 및 다운로드</h2>
-      <button onClick={handleFetchUploads} style={{ marginRight: "10px" }}>업로드 내용 보기</button>
-      <button onClick={handleDownloadZip}>Zip 다운로드</button>
+      <button onClick={fetchUploadedData}>📂 업로드 내용 보기</button>
+      <button onClick={fetchAssignments}>📋 과제 목록 보기</button>
+      <button onClick={handleDownloadZip}>⬇ ZIP 다운로드</button>
 
-      <div style={{ marginTop: "20px" }}>
-        <h3>📦 업로드된 파일 목록</h3>
-        {uploadedFiles.length === 0 ? (
-          <p>표시할 파일이 없습니다.</p>
-        ) : (
-          uploadedFiles.map((f, idx) => (
-            <div key={idx} style={{ borderBottom: "1px solid #ddd", padding: "5px 0" }}>
-              <strong>{f.filename}</strong> ({f.subject} / {f.week}주차)
-              <br />
-              요약: {f.summary}
+      <p style={{ color: 'green' }}>{message}</p>
+
+      {uploadedData && (
+        <div>
+          <h2>업로드 파일 목록</h2>
+          {Object.entries(uploadedData).map(([subj, weeks]) => (
+            <div key={subj}>
+              <strong>{subj}</strong>
+              <ul>
+                {Object.entries(weeks).map(([week, files]) => (
+                  <li key={week}>
+                    {week}: {files.join(', ')}
+                  </li>
+                ))}
+              </ul>
             </div>
-          ))
-        )}
-      </div>
+          ))}
+        </div>
+      )}
 
-      <div style={{ marginTop: "30px" }}>
-        <h3>📝 등록된 과제</h3>
-        {assignments.length === 0 ? (
-          <p>등록된 과제가 없습니다.</p>
-        ) : (
-          assignments.map((a, idx) => (
-            <div key={idx} style={{ borderBottom: "1px solid #ccc", padding: "5px 0" }}>
-              <strong>{a.subject}</strong> - {a.title} (마감일: {a.deadline})
-            </div>
-          ))
-        )}
-      </div>
+      {assignments.length > 0 && (
+        <div>
+          <h2>과제 목록</h2>
+          <ul>
+            {assignments.map((a, idx) => (
+              <li key={idx}>
+                [{a.subject}] {a.title} - 마감일: {a.deadline}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
     </div>
   );
 }
