@@ -29,6 +29,7 @@ function App() {
   // Vite에서는 import.meta.env.VITE_로 시작하는 변수만 읽어옵니다.
   const backendUrl = import.meta.env.VITE_BACKEND_URL;
 
+
   const handleUpload = async () => {
     const finalSubject = subject === "직접 입력" ? customSubject.trim() : subject;
     if (!finalSubject) return alert("과목명을 입력하세요!");
