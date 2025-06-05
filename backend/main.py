@@ -8,6 +8,14 @@ from fastapi.responses import JSONResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 import zipfile
 
+
+
+# ✅ uploads 폴더 없으면 생성
+UPLOAD_ROOT = './uploads'
+if not os.path.exists(UPLOAD_ROOT):
+    os.makedirs(UPLOAD_ROOT)
+
+
 app = FastAPI()
 
 app.add_middleware(
