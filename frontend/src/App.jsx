@@ -1,4 +1,4 @@
-// App.jsx - 친구 노트북에서도 정상 작동하도록 백엔드 주소 수정 포함 전체 코드
+// src/App.jsx
 import React, { useState } from "react";
 import axios from "axios";
 
@@ -25,8 +25,9 @@ function App() {
 
   const weekOptions = Array.from({ length: 15 }, (_, i) => `${i + 1}`);
 
-  // 백엔드 주소 - 너의 로컬 IP로 수정
-  const backendUrl = "http://172.30.153.55:8000";
+  // 하드코딩된 IP 대신 VITE_BACKEND_URL 환경 변수를 사용하도록 수정
+  // Vite에서는 import.meta.env.VITE_로 시작하는 변수만 읽어옵니다.
+  const backendUrl = import.meta.env.VITE_BACKEND_URL;
 
   const handleUpload = async () => {
     const finalSubject = subject === "직접 입력" ? customSubject.trim() : subject;
@@ -38,10 +39,12 @@ function App() {
     formData.append("week", week);
 
     try {
+      // VITE_BACKEND_URL로 설정된 주소로 API 요청
       const res = await axios.post(`${backendUrl}/upload`, formData);
       setResults(res.data.results);
     } catch (error) {
       alert("업로드 중 오류가 발생했습니다.");
+      console.error(error);
     }
   };
 
