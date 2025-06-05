@@ -1,170 +1,153 @@
-import React, { useState } from 'react';
-import axios from 'axios';
+import React, { useState } from "react";
+import axios from "axios";
+import { QRCode } from "qrcode.react";
 
 function App() {
-  const [uploadId, setUploadId] = useState('');
-  const [subject, setSubject] = useState('');
-  const [week, setWeek] = useState('');
+  const [uploadId, setUploadId] = useState("");
+  const [subject, setSubject] = useState("");
+  const [week, setWeek] = useState("");
   const [files, setFiles] = useState([]);
-  const [assignTitle, setAssignTitle] = useState('');
-  const [assignDeadline, setAssignDeadline] = useState('');
-  const [uploadedData, setUploadedData] = useState(null);
-  const [assignments, setAssignments] = useState([]);
-  const [message, setMessage] = useState('');
-
-  const backendURL = 'https://lecture-sorter-backend.onrender.com';
+  const [assignmentTitle, setAssignmentTitle] = useState("");
+  const [assignmentDeadline, setAssignmentDeadline] = useState("");
+  const [uploadResult, setUploadResult] = useState(null);
 
   const handleUpload = async () => {
+    if (!uploadId || !subject || !week || files.length === 0) {
+      alert("모든 항목을 입력하고 파일을 선택해주세요.");
+      return;
+    }
+
     const formData = new FormData();
-    files.forEach(file => formData.append('files', file));
-    formData.append('upload_id', uploadId);
-    formData.append('subject', subject);
-    formData.append('week', week);
+    formData.append("upload_id", uploadId);
+    formData.append("subject", subject);
+    formData.append("week", week);
+    for (const file of files) {
+      formData.append("files", file);
+    }
 
     try {
-      const res = await axios.post(`${backendURL}/upload`, formData);
-      setMessage('파일 업로드 성공');
-      console.log(res.data);
-    } catch (err) {
-      console.error(err);
-      setMessage('업로드 실패');
+      const response = await axios.post(
+        "https://lecture-sorter-backend.onrender.com/upload",
+        formData
+      );
+      setUploadResult(response.data);
+      alert("업로드 성공!");
+    } catch (error) {
+      console.error(error);
+      alert("업로드 실패");
     }
   };
 
-  const handleAssignment = async () => {
+  const handleRegisterAssignment = async () => {
+    if (!uploadId || !subject || !assignmentTitle || !assignmentDeadline) {
+      alert("모든 항목을 입력해주세요.");
+      return;
+    }
+
     const formData = new FormData();
-    formData.append('upload_id', uploadId);
-    formData.append('subject', subject);
-    formData.append('title', assignTitle);
-    formData.append('deadline', assignDeadline);
+    formData.append("upload_id", uploadId);
+    formData.append("subject", subject);
+    formData.append("title", assignmentTitle);
+    formData.append("deadline", assignmentDeadline);
 
     try {
-      await axios.post(`${backendURL}/assignments`, formData);
-      setMessage('과제 등록 완료');
-    } catch (err) {
-      console.error(err);
-      setMessage('과제 등록 실패');
-    }
-  };
-
-  const fetchUploadedData = async () => {
-    try {
-      const res = await axios.get(`${backendURL}/uploads/${uploadId}`);
-      setUploadedData(res.data);
-      setMessage('');
-    } catch (err) {
-      console.error(err);
-      setMessage('업로드된 자료 없음');
-      setUploadedData(null);
-    }
-  };
-
-  const fetchAssignments = async () => {
-    try {
-      const res = await axios.get(`${backendURL}/assignments/${uploadId}`);
-      setAssignments(res.data);
-      setMessage('');
-    } catch (err) {
-      console.error(err);
-      setMessage('과제 정보 없음');
-      setAssignments([]);
-    }
-  };
-
-  const handleDownloadZip = async () => {
-    try {
-      const res = await axios.get(`${backendURL}/zip/${uploadId}`, {
-        responseType: 'blob',
-      });
-      const url = window.URL.createObjectURL(new Blob([res.data]));
-      const link = document.createElement('a');
-      link.href = url;
-      link.setAttribute('download', `${uploadId}_자료.zip`);
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-    } catch (err) {
-      console.error(err);
-      setMessage('ZIP 다운로드 실패');
+      await axios.post(
+        "https://lecture-sorter-backend.onrender.com/assignments",
+        formData
+      );
+      alert("과제 등록 성공!");
+    } catch (error) {
+      console.error(error);
+      alert("과제 등록 실패");
     }
   };
 
   return (
-    <div style={{ padding: '20px' }}>
+    <div style={{ maxWidth: 700, margin: "40px auto", padding: 20, fontFamily: "sans-serif" }}>
       <h1>📚 Lecture Sorter</h1>
 
+      <label>Upload ID:</label>
       <input
-        placeholder="업로드 ID"
+        type="text"
         value={uploadId}
         onChange={(e) => setUploadId(e.target.value)}
+        placeholder="예: nagang"
+        style={{ width: "100%", marginBottom: 10 }}
       />
+
+      <label>Subject:</label>
       <input
-        placeholder="과목명"
+        type="text"
         value={subject}
         onChange={(e) => setSubject(e.target.value)}
+        placeholder="예: 디지털공학"
+        style={{ width: "100%", marginBottom: 10 }}
       />
+
+      <label>Week:</label>
       <input
-        placeholder="주차 (숫자만)"
+        type="text"
         value={week}
         onChange={(e) => setWeek(e.target.value)}
+        placeholder="예: 10"
+        style={{ width: "100%", marginBottom: 10 }}
       />
+
+      <label>Files:</label>
       <input
         type="file"
         multiple
         onChange={(e) => setFiles(Array.from(e.target.files))}
+        style={{ width: "100%", marginBottom: 20 }}
       />
-      <button onClick={handleUpload}>📤 파일 업로드</button>
+
+      <button onClick={handleUpload} style={{ marginBottom: 30 }}>📤 업로드</button>
 
       <hr />
 
+      <h2>📝 과제 등록</h2>
+      <label>과제 제목:</label>
       <input
-        placeholder="과제 제목"
-        value={assignTitle}
-        onChange={(e) => setAssignTitle(e.target.value)}
+        type="text"
+        value={assignmentTitle}
+        onChange={(e) => setAssignmentTitle(e.target.value)}
+        placeholder="예: 기말 프로젝트"
+        style={{ width: "100%", marginBottom: 10 }}
       />
+
+      <label>제출 기한:</label>
       <input
         type="date"
-        value={assignDeadline}
-        onChange={(e) => setAssignDeadline(e.target.value)}
+        value={assignmentDeadline}
+        onChange={(e) => setAssignmentDeadline(e.target.value)}
+        style={{ width: "100%", marginBottom: 20 }}
       />
-      <button onClick={handleAssignment}>📝 과제 등록</button>
 
-      <hr />
+      <button onClick={handleRegisterAssignment} style={{ marginBottom: 30 }}>✅ 과제 등록</button>
 
-      <button onClick={fetchUploadedData}>📂 업로드 내용 보기</button>
-      <button onClick={fetchAssignments}>📋 과제 목록 보기</button>
-      <button onClick={handleDownloadZip}>⬇ ZIP 다운로드</button>
+      {uploadId && (
+        <div style={{ marginTop: "40px", borderTop: "1px solid #ccc", paddingTop: "30px" }}>
+          <h3>📦 업로드 완료!</h3>
+          <p>아래 링크로 언제든지 접속하여 확인할 수 있어요:</p>
+          <a
+            href={`https://lecture-sorter-frontend.onrender.com/uploads/${uploadId}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{ wordBreak: "break-all", color: "blue" }}
+          >
+            https://lecture-sorter-frontend.onrender.com/uploads/{uploadId}
+          </a>
 
-      <p style={{ color: 'green' }}>{message}</p>
+          <h4 style={{ marginTop: "20px" }}>📱 QR코드로 공유</h4>
+          <QRCode
+            value={`https://lecture-sorter-frontend.onrender.com/uploads/${uploadId}`}
+            size={160}
+            includeMargin={true}
+          />
 
-      {uploadedData && (
-        <div>
-          <h2>업로드 파일 목록</h2>
-          {Object.entries(uploadedData).map(([subj, weeks]) => (
-            <div key={subj}>
-              <strong>{subj}</strong>
-              <ul>
-                {Object.entries(weeks).map(([week, files]) => (
-                  <li key={week}>
-                    {week}: {files.join(', ')}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {assignments.length > 0 && (
-        <div>
-          <h2>과제 목록</h2>
-          <ul>
-            {assignments.map((a, idx) => (
-              <li key={idx}>
-                [{a.subject}] {a.title} - 마감일: {a.deadline}
-              </li>
-            ))}
-          </ul>
+          <p style={{ marginTop: "10px", color: "#888" }}>
+            이 QR을 스캔하거나 링크를 즐겨찾기 해두면 편리해요!
+          </p>
         </div>
       )}
     </div>

@@ -96,3 +96,4 @@ uvicorn
 pdfplumber
 python-multipart
 flask-cors
+qrcode.react
