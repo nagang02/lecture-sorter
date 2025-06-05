@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import axios from "axios";
-import { QRCode } from "qrcode.react";
+import QRCode from "qrcode.react";
 
 function App() {
   const [uploadId, setUploadId] = useState("");
