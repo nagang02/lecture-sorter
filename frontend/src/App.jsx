@@ -3,7 +3,9 @@ import { BrowserRouter as Router, Routes, Route, useParams } from "react-router-
 import axios from "axios";
 import { QRCodeCanvas } from "qrcode.react";
 
-// ✅ 업로드 결과 보기 컴포넌트
+// -----------------------------
+// 1) 업로드 결과 보기 컴포넌트
+// -----------------------------
 function UploadViewer() {
   const { uploadId } = useParams();
   const [uploadedData, setUploadedData] = useState(null);
@@ -51,7 +53,9 @@ function UploadViewer() {
   );
 }
 
-// ✅ 메인 페이지 컴포넌트
+// -----------------------------
+// 2) 메인 업로드 · 과제 등록 페이지
+// -----------------------------
 function MainApp() {
   const [uploadId, setUploadId] = useState("");
   const [subject, setSubject] = useState("");
@@ -59,7 +63,6 @@ function MainApp() {
   const [files, setFiles] = useState([]);
   const [assignmentTitle, setAssignmentTitle] = useState("");
   const [assignmentDeadline, setAssignmentDeadline] = useState("");
-  const [uploadResult, setUploadResult] = useState(null);
 
   const handleUpload = async () => {
     if (!uploadId || !subject || !week || files.length === 0) {
@@ -76,11 +79,10 @@ function MainApp() {
     }
 
     try {
-      const response = await axios.post(
+      await axios.post(
         "https://lecture-sorter-backend.onrender.com/upload",
         formData
       );
-      setUploadResult(response.data);
       alert("업로드 성공!");
     } catch (error) {
       console.error(error);
@@ -151,7 +153,9 @@ function MainApp() {
         style={{ width: "100%", marginBottom: 20 }}
       />
 
-      <button onClick={handleUpload} style={{ marginBottom: 30 }}>📤 업로드</button>
+      <button onClick={handleUpload} style={{ marginBottom: 30 }}>
+        📤 업로드
+      </button>
 
       <hr />
 
@@ -173,7 +177,9 @@ function MainApp() {
         style={{ width: "100%", marginBottom: 20 }}
       />
 
-      <button onClick={handleRegisterAssignment} style={{ marginBottom: 30 }}>✅ 과제 등록</button>
+      <button onClick={handleRegisterAssignment} style={{ marginBottom: 30 }}>
+        ✅ 과제 등록
+      </button>
 
       {uploadId && (
         <div style={{ marginTop: "40px", borderTop: "1px solid #ccc", paddingTop: "30px" }}>
@@ -204,7 +210,9 @@ function MainApp() {
   );
 }
 
-// ✅ 전체 라우터 설정
+// -----------------------------
+// 3) 전체 라우터 설정
+// -----------------------------
 function App() {
   return (
     <Router>
